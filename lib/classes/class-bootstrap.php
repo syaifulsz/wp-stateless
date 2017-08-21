@@ -53,7 +53,7 @@ namespace wpCloud\StatelessMedia {
          * @since 1.9.1
          */
         load_plugin_textdomain($this->domain, false, dirname(plugin_basename($this->boot_file)) . '/static/languages/');
-        
+
         // Parse feature falgs, set constants.
         $this->parse_feature_flags();
 
@@ -162,7 +162,7 @@ namespace wpCloud\StatelessMedia {
                 add_filter( 'get_post_metadata', array( $this, 'post_metadata_filter' ), 2, 4 );
               }
 
-              if ( $this->get( 'sm.custom_domain' ) == $this->get( 'sm.bucket' ) ) {
+              if ( $this->get( 'sm.custom_domain' ) && $this->get( 'sm.bucket' ) ) {
                 add_filter( 'wp_stateless_bucket_link', array( $this, 'wp_stateless_bucket_link' ) );
               }
             }
@@ -213,8 +213,8 @@ namespace wpCloud\StatelessMedia {
 
       /**
        * Rebuild srcset from gs_link.
-       * 
-       * 
+       *
+       *
        */
       public function wp_calculate_image_srcset($sources, $size_array, $image_src, $image_meta, $attachment_id){
         foreach ($sources as $width => &$image) {
@@ -254,9 +254,10 @@ namespace wpCloud\StatelessMedia {
        * @param $prev_blog_id
        */
       public function wp_stateless_bucket_link($fileLink) {
-        $bucketname = $this->get( 'sm.bucket' );
-        if ( strpos($fileLink, $bucketname) > 8) {
-          $fileLink = 'http://' . substr($fileLink, strpos($fileLink, $bucketname));
+        $bucketname = $this->get('sm.bucket');
+        $customDomain = $this->get('sm.custom_domain');
+		if (strpos($fileLink, $bucketname) > 8 && strpos($customDomain, 'http') === false) {
+        	$fileLink = 'http://' . substr($fileLink, strpos($fileLink, $bucketname));
         }
         return $fileLink;
       }
@@ -268,7 +269,7 @@ namespace wpCloud\StatelessMedia {
       public function get_settings_page_url( $path = '' ) {
         $protocol = is_ssl() ? 'https://' : 'http://';
         $wp_home = defined('WP_HOME') ? (!strstr(WP_HOME, 'http') ? $protocol : '') . WP_HOME : '';
-        
+
         if($wp_home){
           $url = $wp_home . '/wp-admin/';
         }else{
@@ -453,7 +454,7 @@ namespace wpCloud\StatelessMedia {
       /**
        * @param $value null unless other filter hooked in this function.
        * @param $object_id post id
-       * @param $meta_key 
+       * @param $meta_key
        * @param $single
        * @return mixed
        */
@@ -466,15 +467,15 @@ namespace wpCloud\StatelessMedia {
               $meta_cache = update_meta_cache( $meta_type, array( $object_id ) );
               $meta_cache = $meta_cache[$object_id];
           }
-       
+
           if ( ! $meta_key ) {
               return $this->convert_to_gs_link($meta_cache);
           }
-          
+
           if ( isset($meta_cache[$meta_key]) ) {
               return $this->convert_to_gs_link(array_map('maybe_unserialize', $meta_cache[$meta_key]));
           }
-       
+
           if ($single)
               return '';
           else
@@ -638,7 +639,7 @@ namespace wpCloud\StatelessMedia {
         /* Stateless settings page */
         wp_register_script( 'wp-stateless-settings', ud_get_stateless_media()->path( 'static/scripts/wp-stateless-settings.js', 'url'  ), array(), ud_get_stateless_media()->version );
         wp_localize_script( 'wp-stateless-settings', 'stateless_l10n', $this->get_l10n_data() );
-        
+
         wp_register_style( 'wp-stateless-settings', $this->path( 'static/styles/wp-stateless-settings.css', 'url'  ), array(), self::$version );
 
         // Sync tab
@@ -709,7 +710,7 @@ namespace wpCloud\StatelessMedia {
           case $this->settings->stateless_settings:
             wp_enqueue_script( 'wp-stateless-settings' );
             wp_enqueue_style( 'wp-stateless-settings' );
-            
+
             // Sync tab
             wp_enqueue_script( 'jquery-ui-progressbar' );
             wp_enqueue_script( 'wp-stateless-angular' );
@@ -982,7 +983,7 @@ namespace wpCloud\StatelessMedia {
 
       /**
        * Filter for attachment_url_to_postid()
-       * 
+       *
        * @param int|false $post_id originally found post ID (or false if not found)
        * @param string $url the URL to find the post ID for
        * @return int|false found post ID from cloud storage URL
