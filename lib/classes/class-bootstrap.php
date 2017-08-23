@@ -230,20 +230,16 @@ namespace wpCloud\StatelessMedia {
         return $sources;
       }
 
-      /**
-       * Return gs host.
-       * If custom domain is set it's return bucket name as host,
-       * else return storage.googleapis.com as host and append bucket name at the end.
-       * @param none
-       * @return Host name to use
-       */
-      public function get_gs_host($sm = array()) {
-        $sm = $sm?$sm: $this->get( 'sm');
-        $image_host = 'https://storage.googleapis.com/';
-        if ( $sm['bucket'] && $sm['custom_domain'] == $sm['bucket']) {
-            $image_host = 'http://';  // bucketname will be host
-        }
-        return $image_host . $sm['bucket'];
+	  /**
+	   * Return Google
+	   * @param  array  $sm
+	   * @return string
+	   */
+      public function get_gs_host($sm = []) {
+        	$sm = $sm ? $sm : $this->get('sm');
+    		$image_host = 'https://storage.googleapis.com/';
+			if ($sm['custom_domain'] && strpos($sm['custom_domain'], 'http') == false) $image_host = $sm['custom_domain'];
+    		return $image_host;
       }
 
       /**
@@ -256,7 +252,7 @@ namespace wpCloud\StatelessMedia {
       public function wp_stateless_bucket_link($fileLink) {
         $bucketname = $this->get('sm.bucket');
         $customDomain = $this->get('sm.custom_domain');
-		if (strpos($fileLink, $bucketname) > 8 && strpos($customDomain, 'http') === false) {
+		if (strpos($fileLink, $bucketname) > 8 && strpos($customDomain, 'http') != false) {
         	$fileLink = 'http://' . substr($fileLink, strpos($fileLink, $bucketname));
         }
         return $fileLink;
