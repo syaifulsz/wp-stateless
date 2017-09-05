@@ -2,6 +2,21 @@
 * NEW - Added support for <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable.
 * Fixed read only for Service Account JSON if constant or environment variable is defined. 
 
+#### 2.0.3
+* FIX - Fixed Fatal Error which was occurring on WordPress Multisite after upgrading plugin from 1.x to 2.x.
+* ENHANCEMENT - Improved support of PDF files.
+
+#### 2.0.2
+* FIX - Fixed Fatal Errors which were caused by using PHP 5.4 and less.
+* FIX - Fixed Fatal Error which was caused on Media page when WP Smush Pro plugin is activated.
+* FIX - Fixed detection of plugin files paths. The issue was occurring on installations with custom file structures ( e.g. Bedrock platform ).
+* FIX - Fixed redirection URL to Setup Wizard on plugin activation.
+* ENHANCEMENT - Updated the minimum requirements for PHP to 5.5 to prevent fatal errors and possible warnings.
+
+#### 2.0.1
+* ENHANCEMENT - Added compatibility with Google SDK v1.x version to prevent conflicts with third-party plugins.
+* ENHANCEMENT - Added warning message if old Google SDK version is loaded by third-party plugin.
+
 #### 2.0.0
 * NEW - Added stateless mode.
 * NEW - Dedicated settings panel.
@@ -12,14 +27,11 @@
 * ENHANCEMENT - Relocated synchronization and regeneration tools to the new settings panel.
 
 #### 1.9.2
-* Improvements to onboarding process. [wip]
-* Added Featre Flag support for globally enabling/disabling functionality.
-* Added ChromeLogger and a utility method for using it.
-* Added REST API scaffold for [wp-stateless/v1/status] and [wp-stateless/v1/jobs].
-* Added [wp-stateless-setup] JavaScript library for setup UX.
-
-#### 1.9.1
-* Extended Network Settings 
+* ENHANCEMENT - Added ability to modify default bucket link via 'wp_stateless_bucket_link' filter.
+* ENHANCEMENT - Added checking of connection to GCS once per four hours instead of doing it on every page load.
+* ENHANCEMENT - Google SDK was moved from vendor dir. So it's not loaded on every page load anymore, but only when it's required.
+* ENHANCEMENT - Updated Composer Autoload logic.
+* ENHANCEMENT - Reverted all changes included to 1.9.1 version because of conflicts.
 
 #### 1.9.0
 * Added new ability to define cacheControl for remote objects.

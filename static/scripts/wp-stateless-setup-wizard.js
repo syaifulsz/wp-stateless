@@ -11,6 +11,7 @@ jQuery(document).ready(function ($) {
 	var comboBox = setupForm.find('.wpStateLess-combo-box');
 	var projectDropdown = comboBox.filter('.project');
 	var bucketDropdown = comboBox.filter('.bucket');
+	var regionDropdown = comboBox.filter('.region');
   	var billingDropdown = comboBox.filter('.billing-account');
   	var noBillingButton = billingDropdown.parent().find('.create-billing-account.no-billing-account');
 
@@ -283,7 +284,10 @@ jQuery(document).ready(function ($) {
 		var projectName = projectDropdown.find('.name').val().replace(/\(.*/, '').replace(/^\s+|\s+$/g,'');
 		var bucketName = bucketDropdown.find('.name').val();
 		var bucketId = bucketName == 'localhost'?'':bucketName;
-		var serviceAccountId = 'stateless-' + bucketId.replace('stateless-', '');
+		var regionId = regionDropdown.find('.id').val();
+		var serviceAccountId = 'stateless-' + bucketId.replace('stateless-', '')
+			.replace(/\./g, '-').replace(/_/g, '-')
+			.slice(0, 23) + '-' + Math.floor((Math.random() * 1000000) + 1000000);
 		var serviceAccountName = 'Stateless ' + bucketName.replace('Stateless', '');
 		var billingAccount = billingDropdown.find('.id').val();
 		var isValid = true;
@@ -365,7 +369,7 @@ jQuery(document).ready(function ($) {
 			createBucket: ['updateBilltingInfo', async.retryable({times: 10, interval: 1500}, function(results, callback){
 				if( typeof wp.stateless.projects[projectId] == 'undefined' || typeof wp.stateless.projects[projectId]['buckets'][bucketId] == 'undefined'){
 					// Bucket didn't exist.
-					wp.stateless.createBucket({"projectId": projectId, "name": bucketId})
+					wp.stateless.createBucket({"projectId": projectId, "name": bucketId, location: regionId})
 					.done(function(argument) {
 						callback(null, {ok: true, task: 'createBucket', message: stateless_l10n.bucket_created});
 					}).fail(function(response) {
@@ -413,8 +417,8 @@ jQuery(document).ready(function ($) {
 				wp.stateless.insertBucketAccessControls({
 					"bucket": bucketId,
 					"user": results['createServiceAccount'].email,
-				}).done(function(responseData){
-					callback(null, {ok: true, task: 'insertBucketAccessControls', email: responseData.email, message: stateless_l10n.service_account_created});
+				}).done(function(iam){
+					callback(null, {ok: true, task: 'insertBucketAccessControls', iam: iam});
 				}).fail(function(response) {
 					callback({ok: false, task: 'insertBucketAccessControls', message: stateless_l10n.something_went_wrong});
 				});
@@ -422,7 +426,7 @@ jQuery(document).ready(function ($) {
 			createServiceAccountKey: ['insertBucketAccessControls', function(results, callback) {
 				wp.stateless.createServiceAccountKeys({
 					"project": projectId,
-					"account": results['insertBucketAccessControls'].email
+					"account": results['createServiceAccount'].email
 				}).done(function(ServiceAccountKey){
 					callback(null, {ok: true, task: 'createServiceAccountKey', privateKeyData: ServiceAccountKey.privateKeyData, message: stateless_l10n.service_account_key_created});
 				}).fail(function(response) {

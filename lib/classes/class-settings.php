@@ -23,10 +23,11 @@ namespace wpCloud\StatelessMedia {
       private $settings = array(
           'mode'                   => array('WP_STATELESS_MEDIA_MODE', 'cdn'), 
           'body_rewrite'           => array('WP_STATELESS_MEDIA_BODY_REWTITE', 'true'), 
+          'body_rewrite_types'     => array('WP_STATELESS_MEDIA_BODY_REWRITE_TYPES', 'jpg jpeg png gif pdf'), 
           'on_fly'                 => array('WP_STATELESS_MEDIA_ON_FLY', 'false'), 
           'bucket'                 => array('WP_STATELESS_MEDIA_BUCKET', ''), 
           'root_dir'               => array('WP_STATELESS_MEDIA_ROOT_DIR', ''), 
-          'key_json'               => array('WP_STATELESS_MEDIA_KEY_FILE_PATH', ''),
+          'key_json'               => array('WP_STATELESS_MEDIA_JSON_KEY', ''),
           'cache_control'          => array('WP_STATELESS_MEDIA_CACHE_CONTROL', ''), 
           'delete_remote'          => array('WP_STATELESS_MEDIA_DELETE_REMOTE', 'true'), 
           'custom_domain'          => array('WP_STATELESS_MEDIA_CUSTOM_DOMAIN', ''), 
@@ -95,7 +96,7 @@ namespace wpCloud\StatelessMedia {
       public function refresh() {
         $constant_mode = false;
         $upload_data = wp_upload_dir();
-        $google_app_key_file = getenv('GOOGLE_APPLICATION_CREDENTIALS', true) ?: getenv('GOOGLE_APPLICATION_CREDENTIALS');
+        $google_app_key_file = getenv('GOOGLE_APPLICATION_CREDENTIALS') ?: getenv('GOOGLE_APPLICATION_CREDENTIALS');
 
         foreach ($this->settings as $option => $array) {
           $value    = '';
@@ -109,16 +110,15 @@ namespace wpCloud\StatelessMedia {
 
           // Getting settings
           $value = get_option($_option, $default);
+          
+          if ($option == 'body_rewrite_types' && empty($value) && !is_multisite()) {
+            $value = $default;
+          }
 
           // If constant is set then override by constant
           if(defined($constant)){
             $value = constant($constant);
             $this->set( "sm.readonly.{$option}", "constant" );
-          }
-          // For key_json, check enviroment variable exists
-          elseif ($option == 'key_json' && $google_app_key_file !== false) {
-            $value = $google_app_key_file;
-            $this->set("sm.readonly.{$option}", "environment");
           }
           // Getting network settings
           elseif(is_multisite() && $option != 'organize_media'){
@@ -144,9 +144,6 @@ namespace wpCloud\StatelessMedia {
           // If constant is set then override by constant
           if(defined($constant)){
             $value = constant($constant);
-          } // For key_json, check enviroment variable exists
-          elseif ($option == 'key_json' && $google_app_key_file !== false) {
-            $value = $google_app_key_file;
           }
           // Getting network settings
           elseif(is_multisite()){
@@ -192,6 +189,10 @@ namespace wpCloud\StatelessMedia {
             }
             if(file_exists($key_file_path)){
               $this->set( 'sm.key_json', file_get_contents($key_file_path) );
+              if(defined('WP_STATELESS_MEDIA_KEY_FILE_PATH'))
+                $this->set( "sm.readonly.key_json", "constant" );
+              else
+                $this->set("sm.readonly.key_json", "environment");
             }
           }
         }
@@ -233,7 +234,8 @@ namespace wpCloud\StatelessMedia {
        * Add menu options
        */
       public function admin_menu() {
-        if($this->get('sm.hide_setup_assistant') != 'true' && empty($this->get('sm.key_json')) ){
+        $key_json = $this->get('sm.key_json');
+        if($this->get('sm.hide_setup_assistant') != 'true' && empty($key_json) ){
           $this->setup_wizard_ui = add_media_page( __( 'Stateless Setup', ud_get_stateless_media()->domain ), __( 'Stateless Setup', ud_get_stateless_media()->domain ), 'manage_options', 'stateless-setup', array($this, 'setup_wizard_interface') );
         }
 

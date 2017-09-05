@@ -25,7 +25,7 @@ namespace wpCloud\StatelessMedia {
        * @property $version
        * @type {Object}
        */
-      public static $version = '1.9.2';
+      public static $version = '2.1';
 
       /**
        * Singleton Instance Reference.
@@ -56,6 +56,19 @@ namespace wpCloud\StatelessMedia {
 
         // Parse feature falgs, set constants.
         $this->parse_feature_flags();
+
+        /**
+         * Define settings and UI.
+         *
+         * Example:
+         *
+         * Get option
+         * $this->get( 'sm.client_id' )
+         *
+         * Manually Update/Add option
+         * $this->set( 'sm.client_id', 'zxcvv12adffse' );
+         */
+        $this->settings = new Settings();
 
         // Invoke REST API
         add_action( 'rest_api_init', array( $this, 'api_init' ) );
@@ -100,19 +113,6 @@ namespace wpCloud\StatelessMedia {
         $this->is_network_detected();
 
         /**
-         * Define settings and UI.
-         *
-         * Example:
-         *
-         * Get option
-         * $this->get( 'sm.client_id' )
-         *
-         * Manually Update/Add option
-         * $this->set( 'sm.client_id', 'zxcvv12adffse' );
-         */
-        $this->settings = new Settings();
-
-        /**
          * Add scripts
          */
         add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
@@ -130,7 +130,8 @@ namespace wpCloud\StatelessMedia {
           /**
            * Override Cache Control is option is enabled
            */
-          if ( !empty(trim($this->get( 'sm.cache_control' ))) ) {
+          $cacheControl = trim($this->get( 'sm.cache_control' ));
+          if ( !empty($cacheControl) ) {
             add_filter( 'sm:item:cacheControl', array( $this, 'override_cache_control' ) );
           }
 
@@ -142,6 +143,15 @@ namespace wpCloud\StatelessMedia {
 
           if ( is_wp_error( $is_connected ) ) {
             $this->errors->add( $is_connected->get_error_message() );
+          }
+
+          if ( $googleSDKVersionConflictError = get_transient( "wp_stateless_google_sdk_conflict" ) ) {
+            $this->errors->add( $googleSDKVersionConflictError, 'warning' );
+          }
+
+          // To prevent fatal errors for users who use PHP 5.5 or less.
+          if( version_compare(PHP_VERSION, '5.5', '<') ) {
+            $this->errors->add( sprintf( __( 'The plugin requires PHP %s or higher. You current PHP version %s is too old.', ud_get_stateless_media()->domain ), '<b>5.5</b>', '<b>' . PHP_VERSION . '</b>' ) );
           }
 
           /** Temporary fix to WP 4.4 srcset feature **/
@@ -263,22 +273,7 @@ namespace wpCloud\StatelessMedia {
        * @param $path
        */
       public function get_settings_page_url( $path = '' ) {
-        $protocol = is_ssl() ? 'https://' : 'http://';
-        $wp_home = defined('WP_HOME') ? (!strstr(WP_HOME, 'http') ? $protocol : '') . WP_HOME : '';
-
-        if($wp_home){
-          $url = $wp_home . '/wp-admin/';
-        }else{
-          $url = admin_url();
-        }
-
-        if(is_network_admin()){
-          $url .= 'network/settings.php';
-        }
-        else{
-          $url .= 'upload.php';
-        }
-
+        $url = get_admin_url( get_current_blog_id(), ( is_network_admin() ? 'network/settings.php' : 'upload.php' ) );
         return $url . $path;
       }
 
@@ -439,12 +434,28 @@ namespace wpCloud\StatelessMedia {
             $root_dir = trim( $this->get( 'sm.root_dir' ), '/ ' ); // Remove any forward slash and empty space.
             $root_dir = !empty( $root_dir ) ? $root_dir . '/' : false;
             $image_host = $this->get_gs_host();
-            $content = preg_replace( '/(href|src)=(\'|")(https?:\/\/'.str_replace('/', '\/', $baseurl).')\/(.+?)(\.jpg|\.png|\.gif|\.jpeg)(\'|")/i',
+            $file_ext = $this->replaceable_file_types();
+            $content = preg_replace( '/(href|src)=(\'|")(https?:\/\/'.str_replace('/', '\/', $baseurl).')\/(.+?)('.$file_ext.')(\'|")/i',
                 '$1=$2'.$image_host.'/'.($root_dir?$root_dir:'').'$4$5$6', $content);
           }
         }
 
         return $content;
+      }
+
+      /**
+       * Return file types supported by File URL Replacement.
+       *
+       */
+      public function replaceable_file_types(){
+        $types = $this->get('sm.body_rewrite_types');
+
+        // Removing extra space.
+        $types = trim($types);
+        $types = preg_replace("/\s{2,}/", ' ', $types);
+
+        $types_arr = explode(' ', $types);
+        return '\.' . implode('|\.', $types_arr);
       }
 
       /**
@@ -513,9 +524,13 @@ namespace wpCloud\StatelessMedia {
                 $meta[$key] = $this->_convert_to_gs_link($value);
               }
               return $meta;
-            }
-            else{
-              return preg_replace( '/(https?:\/\/'.str_replace('/', '\/', $baseurl).')\/(.+?)(\.jpg|\.png|\.gif|\.jpeg)/i', $image_host.'$2$3', $meta);
+            } elseif (is_object($meta) && $meta instanceof \stdClass ) {
+              foreach (get_object_vars($meta) as $key => $value) {
+                $meta->{$key} = $this->_convert_to_gs_link($value);
+              }
+              return $meta;
+            } elseif(is_string($meta)){
+              return preg_replace( '/(https?:\/\/'.str_replace('/', '\/', $baseurl).')\/(.+?)(\.jpg|\.png|\.gif|\.jpeg|\.pdf)/i', $image_host.'$2$3', $meta);
             }
           }
         }
@@ -904,13 +919,13 @@ namespace wpCloud\StatelessMedia {
             'hash' => md5( serialize( $this->get( 'sm' ) ) ),
           );
           $client = $this->get_client();
+
           if ( is_wp_error( $client ) ) {
             $trnst[ 'success' ] = 'false';
             $trnst[ 'error' ] = $client->get_error_message();
           } else {
             $connected = $client->is_connected();
-            if( $connected !== true ) {
-              $error = $connected->getErrors();
+            if( $connected !== true && $error = $connected->getErrors()) {
               $error = reset($error);
               $trnst[ 'success' ] = 'false';
               $trnst[ 'error' ] = sprintf( __( 'Could not connect to Google Storage bucket. Please, be sure that bucket with name <b>%s</b> exists.', $this->domain ), $this->get( 'sm.bucket' ) );
@@ -918,7 +933,7 @@ namespace wpCloud\StatelessMedia {
                 $trnst[ 'error' ] .= "<br>" . make_clickable($error['message']);
             }
           }
-          set_transient( 'sm::is_connected_to_gs', $trnst, 24 * HOUR_IN_SECONDS );
+          set_transient( 'sm::is_connected_to_gs', $trnst, 4 * HOUR_IN_SECONDS );
         }
 
         if( isset( $trnst[ 'success' ] ) && $trnst[ 'success' ] == 'false' ) {
